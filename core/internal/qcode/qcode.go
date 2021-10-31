@@ -2,7 +2,6 @@
 package qcode
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"path"
@@ -13,7 +12,7 @@ import (
 	"github.com/dosco/graphjin/core/internal/graph"
 	"github.com/dosco/graphjin/core/internal/sdata"
 	"github.com/dosco/graphjin/core/internal/util"
-	"github.com/gobuffalo/flect"
+	"github.com/goccy/go-json"
 )
 
 const (
@@ -720,10 +719,6 @@ func buildFilter(rel sdata.DBRel, pid int32) *Exp {
 func (co *Compiler) setSingular(fieldName string, sel *Select) {
 	if sel.Singular {
 		return
-	}
-
-	if co.c.EnableInflection {
-		sel.Singular = (flect.Singularize(fieldName) == fieldName)
 	}
 
 	if len(sel.Joins) != 0 {

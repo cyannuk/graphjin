@@ -1,6 +1,0 @@
-demo
-tmp
-*.md
-web/build
-docker-compose.*
-docs

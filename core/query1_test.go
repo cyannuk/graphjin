@@ -2,16 +2,9 @@ package core_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"net/http"
-	"net/http/httptest"
-	"os"
-	"path"
-
 	"github.com/dosco/graphjin/core"
+	"github.com/goccy/go-json"
 )
 
 func Example_query() {
@@ -26,7 +19,7 @@ func Example_query() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -51,7 +44,7 @@ func Example_queryWithUser() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -86,7 +79,7 @@ func Example_queryWithDynamicOrderBy() {
 		}},
 	})
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -126,7 +119,7 @@ func Example_queryWithNestedOrderBy() {
 		DisableAllowList: true,
 	})
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -166,7 +159,7 @@ func Example_queryWithLimitOffsetOrderByDistinctAndWhere() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -192,7 +185,7 @@ func Example_queryWithWhereIn() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -223,7 +216,7 @@ func Example_queryWithWhereNotIsNullAndGreaterThan() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -254,7 +247,7 @@ func Example_queryWithWhereGreaterThanOrLesserThan() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -280,7 +273,7 @@ func Example_queryWithWhereOnRelatedTable() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -306,7 +299,7 @@ func Example_queryWithAlternateFieldNames() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -333,7 +326,7 @@ func Example_queryByID() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -360,7 +353,7 @@ func Example_queryBySearch() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -386,7 +379,7 @@ func Example_queryParentsWithChildren() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -412,7 +405,7 @@ func Example_queryChildrenWithParent() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -454,7 +447,7 @@ func Example_queryParentAndChildrenViaArrayColumn() {
 	},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -482,7 +475,7 @@ func Example_queryManyToManyViaJoinTable1() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -508,7 +501,7 @@ func Example_queryManyToManyViaJoinTable2() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, DefaultLimit: 2})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -530,7 +523,7 @@ func Example_queryWithAggregation() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -559,7 +552,7 @@ func Example_queryWithAggregationBlockedColumn() {
 		panic(err)
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -588,7 +581,7 @@ func Example_queryWithFunctionsBlocked() {
 		panic(err)
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -610,7 +603,7 @@ func Example_queryWithFunctionsWithWhere() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -641,7 +634,7 @@ func Example_queryWithSyntheticTables() {
 		panic(err)
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -669,7 +662,7 @@ func Example_queryWithVariables() {
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
 	conf.Vars = map[string]string{"product_price": "50"}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -705,7 +698,7 @@ func Example_queryWithMultipleTopLevelTables() {
 	vars := json.RawMessage(`{ "id": 1 }`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -739,7 +732,7 @@ func Example_queryWithFragments1() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, DefaultLimit: 2})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -774,7 +767,7 @@ func Example_queryWithFragments2() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, DefaultLimit: 2})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -809,7 +802,7 @@ func Example_queryWithFragments3() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, DefaultLimit: 2})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -855,7 +848,7 @@ func Example_queryWithUnionForPolymorphicRelationships() {
 		Columns: []core.Column{{Name: "subject_id", ForeignKey: "subject_type.id"}},
 	}}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -884,7 +877,7 @@ func Example_queryWithSkipAndIncludeDirectives() {
 	vars := json.RawMessage(`{ "test": true }`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -896,50 +889,6 @@ func Example_queryWithSkipAndIncludeDirectives() {
 		fmt.Println(string(res.Data))
 	}
 	// Output: {"users": [], "products": [{"id": 1, "name": "Product 1"}, {"id": 2, "name": "Product 2"}]}
-}
-
-func Example_queryWithRemoteAPIJoin() {
-	gql := `query {
-		users {
-			email
-			payments {
-				desc
-			}
-		}
-	}`
-
-	// fake remote api service
-	go func() {
-		http.HandleFunc("/payments/", func(w http.ResponseWriter, r *http.Request) {
-			id := r.URL.Path[10:]
-			fmt.Fprintf(w, `{"data":[{"desc":"Payment 1 for %s"},{"desc": "Payment 2 for %s"}]}`,
-				id, id)
-		})
-		log.Fatal(http.ListenAndServe("localhost:12345", nil))
-	}()
-
-	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, DefaultLimit: 2})
-	conf.Resolvers = []core.ResolverConfig{{
-		Name:      "payments",
-		Type:      "remote_api",
-		Table:     "users",
-		Column:    "stripe_id",
-		StripPath: "data",
-		Props:     core.ResolverProps{"url": "http://localhost:12345/payments/$id"},
-	}}
-
-	gj, err := core.NewGraphJin(conf, db)
-	if err != nil {
-		panic(err)
-	}
-
-	res, err := gj.GraphQL(context.Background(), gql, nil, nil)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(string(res.Data))
-	}
-	// Output: {"users": [{"email": "user1@test.com", "payments":[{"desc":"Payment 1 for payment_id_1001"},{"desc": "Payment 2 for payment_id_1001"}]}, {"email": "user2@test.com", "payments":[{"desc":"Payment 1 for payment_id_1002"},{"desc": "Payment 2 for payment_id_1002"}]}]}
 }
 
 func Example_queryWithCursorPagination() {
@@ -957,7 +906,7 @@ func Example_queryWithCursorPagination() {
 	vars := json.RawMessage(`{"cursor": null}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1014,7 +963,7 @@ func Example_queryWithJsonColumn() {
 		},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1026,141 +975,6 @@ func Example_queryWithJsonColumn() {
 		fmt.Println(string(res.Data))
 	}
 	// Output: {"users": {"id": 1, "category_counts": [{"count": 400, "category": {"name": "Category 1"}}, {"count": 600, "category": {"name": "Category 2"}}]}}
-}
-
-func Example_queryWithScriptDirective() {
-	gql := `query @script(name: "test.js") {
-		usersByID(id: $id)  {
-			id
-			email
-		}
-	}`
-
-	script := `
-	function request(vars) {
-		return { id: 2 };
-	}
-	
-	function response(json) {
-		json.usersByID.email = "u...@test.com";
-		return json;
-	}
-	`
-
-	dir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(dir)
-
-	err = ioutil.WriteFile(path.Join(dir, "test.js"), []byte(script), 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, ScriptPath: dir})
-	gj, err := core.NewGraphJin(conf, db)
-	if err != nil {
-		panic(err)
-	}
-
-	res, err := gj.GraphQL(context.Background(), gql, nil, nil)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(string(res.Data))
-	}
-	// Output: {"usersByID":{"email":"u...@test.com","id":2}}
-}
-
-func Example_queryWithScriptDirectiveUsingGraphQL() {
-	gql := `query @script(name: "test.js") {
-		usersByID(id: 2)  {
-			id
-			email
-		}
-	}`
-
-	script := `
-	function response(json) {
-		let val = graphql('query { users(id: 1) { id email } }')
-		json.usersByID.email = val.users.email
-		return json;
-	}
-	`
-
-	dir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(dir)
-
-	err = ioutil.WriteFile(path.Join(dir, "test.js"), []byte(script), 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, ScriptPath: dir})
-	gj, err := core.NewGraphJin(conf, db)
-	if err != nil {
-		panic(err)
-	}
-
-	res, err := gj.GraphQL(context.Background(), gql, nil, nil)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(string(res.Data))
-	}
-
-	// Output: {"usersByID":{"email":"user1@test.com","id":2}}
-}
-
-func Example_queryWithScriptDirectiveUsingHttp() {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Fprintln(w, `{ "hello": "world" }`)
-	}))
-	defer ts.Close()
-
-	gql := `query @script(name: "test.js") {
-		usersByID(id: 2)  {
-			id
-			email
-		}
-	}`
-
-	script := `
-	function response(json) {
-		let val = http.get("` + ts.URL + `")
-		return JSON.parse(val);
-	}
-	`
-
-	dir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(dir)
-
-	err = ioutil.WriteFile(path.Join(dir, "test.js"), []byte(script), 0600)
-	if err != nil {
-		panic(err)
-	}
-
-	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, ScriptPath: dir})
-	gj, err := core.NewGraphJin(conf, db)
-	if err != nil {
-		panic(err)
-	}
-
-	res, err := gj.GraphQL(context.Background(), gql, nil, nil)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(string(res.Data))
-	}
-
-	// Output: {"hello":"world"}
 }
 
 func Example_queryWithView() {
@@ -1183,7 +997,7 @@ func Example_queryWithView() {
 		},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1213,7 +1027,7 @@ func Example_queryWithRecursiveRelationship1() {
 	vars := json.RawMessage(`{"id": 50 }`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1238,7 +1052,7 @@ func Example_queryWithRecursiveRelationship2() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1264,7 +1078,7 @@ func Example_queryWithRecursiveRelationshipAndAggregations() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1292,7 +1106,7 @@ func Example_queryWithSkippingAuthRequiredSelectors() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1324,7 +1138,7 @@ func Example_blockQueryWithRoles() {
 		panic(err)
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -1360,7 +1174,7 @@ func Example_queryWithCamelToSnakeCase() {
 		},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}

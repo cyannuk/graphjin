@@ -3,7 +3,6 @@ package core_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"math/rand"
 	"regexp"
@@ -11,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dosco/graphjin/core"
+	"github.com/goccy/go-json"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -32,7 +32,7 @@ func Example_subscription() {
 	vars := json.RawMessage(`{ "id": 3 }`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, SubsPollDuration: 1})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -48,7 +48,7 @@ func Example_subscription() {
 
 		// update user phone in database to trigger subscription
 		q := fmt.Sprintf(`UPDATE users SET phone = '650-447-000%d' WHERE id = 3`, i)
-		if _, err := db.Exec(q); err != nil {
+		if _, err := pool.Exec(context.Background(), q); err != nil {
 			panic(err)
 		}
 	}
@@ -85,7 +85,7 @@ func Example_subscriptionWithCursor() {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, SubsPollDuration: 1})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -109,10 +109,6 @@ func Example_subscriptionWithCursor() {
 	// 	return
 	// }
 
-	// replace cursor value to make test work since it's encrypted
-	// v1 := cursorRegex.ReplaceAllString(string(m1.Data), "cursor_was_here")
-	// fmt.Println(v1)
-
 	// create variables with the previously extracted cursor value to
 	// pass to the new chat messages subscription
 	// vars := json.RawMessage(`{ "cursor": "` + res.Cursor + `" }`)
@@ -129,7 +125,7 @@ func Example_subscriptionWithCursor() {
 		for i := 6; i < 20; i++ {
 			// insert a new chat message
 			q := fmt.Sprintf(`INSERT INTO chats (id, body) VALUES (%d, 'New chat message %d')`, i, i)
-			if _, err := db.Exec(q); err != nil {
+			if _, err := pool.Exec(context.Background(), q); err != nil {
 				panic(err)
 			}
 			time.Sleep(3 * time.Second)
@@ -138,31 +134,29 @@ func Example_subscriptionWithCursor() {
 
 	for i := 0; i < 19; i++ {
 		msg := <-m2.Result
-		// replace cursor value to make test work since it's encrypted
-		v2 := cursorRegex.ReplaceAllString(string(msg.Data), "cursor_was_here")
-		fmt.Println(v2)
+		fmt.Println(string(msg.Data))
 	}
 
 	// Output:
-	// {"chats": [{"id": 1, "body": "This is chat message number 1"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 2, "body": "This is chat message number 2"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 3, "body": "This is chat message number 3"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 4, "body": "This is chat message number 4"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 5, "body": "This is chat message number 5"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 6, "body": "New chat message 6"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 7, "body": "New chat message 7"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 8, "body": "New chat message 8"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 9, "body": "New chat message 9"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 10, "body": "New chat message 10"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 11, "body": "New chat message 11"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 12, "body": "New chat message 12"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 13, "body": "New chat message 13"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 14, "body": "New chat message 14"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 15, "body": "New chat message 15"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 16, "body": "New chat message 16"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 17, "body": "New chat message 17"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 18, "body": "New chat message 18"}], "chats_cursor_was_here"}
-	// {"chats": [{"id": 19, "body": "New chat message 19"}], "chats_cursor_was_here"}
+	// {"chats": [{"id": 1, "body": "This is chat message number 1"}], "chats_cursor": "1"}
+	// {"chats": [{"id": 2, "body": "This is chat message number 2"}], "chats_cursor": "2"}
+	// {"chats": [{"id": 3, "body": "This is chat message number 3"}], "chats_cursor": "3"}
+	// {"chats": [{"id": 4, "body": "This is chat message number 4"}], "chats_cursor": "4"}
+	// {"chats": [{"id": 5, "body": "This is chat message number 5"}], "chats_cursor": "5"}
+	// {"chats": [{"id": 6, "body": "New chat message 6"}], "chats_cursor": "6"}
+	// {"chats": [{"id": 7, "body": "New chat message 7"}], "chats_cursor": "7"}
+	// {"chats": [{"id": 8, "body": "New chat message 8"}], "chats_cursor": "8"}
+	// {"chats": [{"id": 9, "body": "New chat message 9"}], "chats_cursor": "9"}
+	// {"chats": [{"id": 10, "body": "New chat message 10"}], "chats_cursor": "10"}
+	// {"chats": [{"id": 11, "body": "New chat message 11"}], "chats_cursor": "11"}
+	// {"chats": [{"id": 12, "body": "New chat message 12"}], "chats_cursor": "12"}
+	// {"chats": [{"id": 13, "body": "New chat message 13"}], "chats_cursor": "13"}
+	// {"chats": [{"id": 14, "body": "New chat message 14"}], "chats_cursor": "14"}
+	// {"chats": [{"id": 15, "body": "New chat message 15"}], "chats_cursor": "15"}
+	// {"chats": [{"id": 16, "body": "New chat message 16"}], "chats_cursor": "16"}
+	// {"chats": [{"id": 17, "body": "New chat message 17"}], "chats_cursor": "17"}
+	// {"chats": [{"id": 18, "body": "New chat message 18"}], "chats_cursor": "18"}
+	// {"chats": [{"id": 19, "body": "New chat message 19"}], "chats_cursor": "19"}
 }
 
 func TestSubscription(t *testing.T) {
@@ -174,7 +168,7 @@ func TestSubscription(t *testing.T) {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true, SubsPollDuration: 1})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}

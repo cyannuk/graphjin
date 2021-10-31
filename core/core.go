@@ -10,6 +10,7 @@ import (
 	"github.com/dosco/graphjin/core/internal/psql"
 	"github.com/dosco/graphjin/core/internal/qcode"
 	"github.com/dosco/graphjin/core/internal/sdata"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type OpType int
@@ -52,7 +53,6 @@ type gcontext struct {
 	gj   *graphjin
 	op   qcode.QType
 	rc   *ReqConfig
-	sc   *script
 	name string
 }
 
@@ -85,7 +85,7 @@ func (gj *graphjin) _initDiscover() error {
 	// for tests
 	if gj.dbinfo == nil {
 		gj.dbinfo, err = sdata.GetDBInfo(
-			gj.db,
+			gj.pool,
 			gj.dbtype,
 			gj.conf.Blocklist)
 	}
@@ -153,11 +153,10 @@ func (gj *graphjin) initCompilers() error {
 		DisableAgg:       gj.conf.DisableAgg,
 		DisableFuncs:     gj.conf.DisableFuncs,
 		EnableCamelcase:  gj.conf.EnableCamelcase,
-		EnableInflection: gj.conf.EnableInflection,
 		DBSchema:         gj.schema.DBSchema(),
 	}
 
-	if gj.allowList != nil && gj.prod {
+	if gj.allowList != nil {
 		qcc.FragmentFetcher = gj.allowList.FragmentFetcher()
 	}
 
@@ -178,16 +177,16 @@ func (gj *graphjin) initCompilers() error {
 	return nil
 }
 
-func (gj *graphjin) executeRoleQuery(c context.Context, conn *sql.Conn, md psql.Metadata, vars []byte, rc *ReqConfig) (string, error) {
+func (gj *graphjin) executeRoleQuery(c context.Context, conn *pgxpool.Conn, md psql.Metadata, vars []byte, rc *ReqConfig) (string, error) {
 	var role string
 	var ar args
 	var err error
 
 	if conn == nil {
-		if conn, err = gj.db.Conn(c); err != nil {
+		if conn, err = gj.pool.Acquire(c); err != nil {
 			return role, err
 		}
-		defer conn.Close()
+		defer conn.Release()
 	}
 
 	if c.Value(UserIDKey) == nil {
@@ -198,7 +197,7 @@ func (gj *graphjin) executeRoleQuery(c context.Context, conn *sql.Conn, md psql.
 		return "", err
 	}
 
-	err = conn.QueryRowContext(c, gj.roleStmt, ar.values...).Scan(&role)
+	err = conn.QueryRow(c, gj.roleStmt, ar.values...).Scan(&role)
 	return role, err
 }
 
@@ -224,10 +223,6 @@ func (c *gcontext) execQuery(qr queryReq, role string) (queryResp, error) {
 		}
 	}
 
-	if c.sc != nil && c.sc.RespFunc != nil {
-		res.data, err = c.scriptCallResp(res.data, res.role)
-	}
-
 	return res, err
 }
 
@@ -237,11 +232,11 @@ func (c *gcontext) resolveSQL(qr queryReq, role string) (queryResp, error) {
 
 	res.role = role
 
-	conn, err := c.gj.db.Conn(c)
+	conn, err := c.gj.pool.Acquire(c)
 	if err != nil {
 		return res, err
 	}
-	defer conn.Close()
+	defer conn.Release()
 
 	if c.gj.conf.SetUserID {
 		if err := c.setLocalUserID(conn); err != nil {
@@ -264,21 +259,6 @@ func (c *gcontext) resolveSQL(qr queryReq, role string) (queryResp, error) {
 		return res, err
 	}
 
-	scriptName := res.qc.st.qc.Script
-
-	if scriptName != "" {
-		if err := c.loadScript(scriptName); err != nil {
-			return res, err
-		}
-	}
-
-	if c.sc != nil && c.sc.ReqFunc != nil {
-		qr.vars, err = c.scriptCallReq(qr.vars, res.qc.st.role.Name)
-		if err != nil {
-			return res, err
-		}
-	}
-
 	args, err := c.gj.argList(c, res.qc.st.md, qr.vars, c.rc)
 	if err != nil {
 		return res, err
@@ -290,42 +270,27 @@ func (c *gcontext) resolveSQL(qr queryReq, role string) (queryResp, error) {
 	// 	stime = time.Now()
 	// }
 
-	row := conn.QueryRowContext(c, res.qc.st.sql, args.values...)
-
-	if err := row.Scan(&res.data); err == sql.ErrNoRows {
-		return res, err
-	} else if err != nil {
-		return res, err
-	}
-
-	cur, err := c.gj.encryptCursor(res.qc.st.qc, res.data)
+	rows, err := conn.Query(c, res.qc.st.sql, args.values...)
 	if err != nil {
 		return res, err
 	}
+	defer rows.Close()
 
-	res.data = cur.data
-
-	if !c.gj.prod && c.gj.allowList != nil {
-		err := c.gj.allowList.Set(qr.vars, string(qr.query), res.qc.st.qc.Metadata)
-		if err != nil {
-			return res, err
+	if rows.Next() {
+		values := rows.RawValues()
+		if len(values) != 0 {
+			res.data = values[0]
+			if c.rc != nil && c.rc.APQKey != "" {
+				c.gj.apq.Set(c.rc.APQKey, apqInfo{op: qr.op, name: qr.name, query: string(qr.query)})
+			}
+			return res, nil
 		}
 	}
 
-	if !c.gj.prod && c.rc != nil && c.rc.APQKey != "" {
-		c.gj.apq.Set(c.rc.APQKey, apqInfo{op: qr.op, name: qr.name, query: string(qr.query)})
-	}
-
-	// if c.gj.conf.EnableTracing {
-	// 	for _, id := range st.qc.Roots {
-	// 		c.addTrace(st.qc.Selects, id, stime)
-	// 	}
-	// }
-
-	return res, nil
+	return res, sql.ErrNoRows
 }
 
-func (c *gcontext) setLocalUserID(conn *sql.Conn) error {
+func (c *gcontext) setLocalUserID(conn *pgxpool.Conn) error {
 	var err error
 
 	if v := c.Value(UserIDKey); v == nil {
@@ -333,10 +298,10 @@ func (c *gcontext) setLocalUserID(conn *sql.Conn) error {
 	} else {
 		switch v1 := v.(type) {
 		case string:
-			_, err = conn.ExecContext(c, `SET SESSION "user.id" = '`+v1+`'`)
+			_, err = conn.Exec(c, `SET SESSION "user.id" = '`+v1+`'`)
 
 		case int:
-			_, err = conn.ExecContext(c, `SET SESSION "user.id" = `+strconv.Itoa(v1))
+			_, err = conn.Exec(c, `SET SESSION "user.id" = `+strconv.Itoa(v1))
 		}
 	}
 

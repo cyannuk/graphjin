@@ -4,12 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"testing"
 
 	"github.com/dosco/graphjin/core"
-	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/sync/errgroup"
 )
@@ -30,7 +27,7 @@ func queryWithVariableLimit(t *testing.T) {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		t.Error(err)
 	}
@@ -46,7 +43,7 @@ func queryWithVariableLimit(t *testing.T) {
 	default:
 		exp := `{"products": [{"id": 1}, {"id": 2}, {"id": 3}, {"id": 4}, {"id": 5}, {"id": 6}, {"id": 7}, {"id": 8}, {"id": 9}, {"id": 10}]}`
 		got := string(res.Data)
-		assert.Equal(t, exp, got, "should equal")
+		assert.JSONEq(t, exp, got, "should equal")
 	}
 }
 
@@ -58,7 +55,7 @@ func TestAPQ(t *testing.T) {
 	}`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		t.Error(err)
 	}
@@ -79,55 +76,30 @@ func TestAPQ(t *testing.T) {
 
 	exp := `{"products": {"id": 2}}`
 	got := string(res.Data)
-	assert.Equal(t, exp, got, "should equal")
+	assert.JSONEq(t, exp, got, "should equal")
 }
 
 func TestAllowList(t *testing.T) {
-	gql1 := `query getProducts {
-		products(id: 2) {
-			id
-		}
-	}`
-
-	gql2 := `query getProducts {
-		products(id: 3) {
+	gql := `query getProducts {
+		products(id: $id) {
 			id
 			name
 		}
 	}`
 
-	dir, err := ioutil.TempDir("", "test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-	fs := afero.NewBasePathFs(afero.NewOsFs(), dir)
+	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: false})
+	gj, err := core.NewGraphJin(conf, pool)
+	assert.NoError(t, err)
 
-	conf1 := newConfig(&core.Config{DBType: dbType})
-	gj1, err := core.NewGraphJin(conf1, db, core.OptionSetFS(fs))
-	if err != nil {
-		t.Error(err)
-	}
+	vars := `
+		{
+			"id": 2
+		}`
+	res, err := gj.GraphQL(context.Background(), gql, []byte(vars), nil)
+	assert.NoError(t, err)
 
-	_, err = gj1.GraphQL(context.Background(), gql1, nil, nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	conf2 := newConfig(&core.Config{DBType: dbType, Production: true})
-	gj2, err := core.NewGraphJin(conf2, db, core.OptionSetFS(fs))
-	if err != nil {
-		t.Error(err)
-	}
-
-	res, err := gj2.GraphQL(context.Background(), gql2, nil, nil)
-	if err != nil {
-		t.Error(err)
-	}
-
-	exp := `{"products": {"id": 2}}`
-	got := string(res.Data)
-	assert.Equal(t, exp, got, "should equal")
+	assert.NotEmpty(t, res.Data)
+	assert.JSONEq(t, `{"products": {"id": 2, "name": "Product 2"}}`, string(res.Data), "should equal")
 }
 
 func TestConfigReuse(t *testing.T) {
@@ -139,7 +111,7 @@ func TestConfigReuse(t *testing.T) {
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
 	for i := 0; i < 50; i++ {
-		gj1, err := core.NewGraphJin(conf, db)
+		gj1, err := core.NewGraphJin(conf, pool)
 		if err != nil {
 			t.Error(err)
 		}
@@ -149,7 +121,7 @@ func TestConfigReuse(t *testing.T) {
 			t.Error(err)
 		}
 
-		gj2, err := core.NewGraphJin(conf, db)
+		gj2, err := core.NewGraphJin(conf, pool)
 		if err != nil {
 			t.Error(err)
 		}
@@ -159,7 +131,7 @@ func TestConfigReuse(t *testing.T) {
 			t.Error(err)
 		}
 
-		assert.Equal(t, res1.Data, res2.Data, "should equal")
+		assert.JSONEq(t, string(res1.Data), string(res2.Data), "should equal")
 	}
 
 }
@@ -199,7 +171,6 @@ func TestParallelRuns(t *testing.T) {
 		g.Go(func() error {
 			for n := 0; n < 10; n++ {
 				conf := newConfig(&core.Config{
-					Production:       true,
 					DisableAllowList: true,
 					Tables: []core.Table{
 						{Name: "me", Table: "users"},
@@ -213,7 +184,7 @@ func TestParallelRuns(t *testing.T) {
 					return err
 				}
 
-				gj, err := core.NewGraphJin(conf, db)
+				gj, err := core.NewGraphJin(conf, pool)
 				if err != nil {
 					return fmt.Errorf("%d: %w", x, err)
 				}
@@ -286,7 +257,7 @@ func Example_veryComplexQuery() {
 		},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -329,7 +300,7 @@ func BenchmarkCompile(b *testing.B) {
 		},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		b.Error(err)
 	}

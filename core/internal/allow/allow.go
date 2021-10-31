@@ -1,11 +1,7 @@
 package allow
 
 import (
-	"bytes"
-	"encoding/json"
-	"errors"
 	"fmt"
-	"log"
 	"os"
 	"path"
 	"path/filepath"
@@ -13,10 +9,6 @@ import (
 	"text/scanner"
 
 	"gopkg.in/yaml.v3"
-
-	"github.com/chirino/graphql/schema"
-	"github.com/dosco/graphjin/internal/jsn"
-	"github.com/spf13/afero"
 )
 
 const (
@@ -54,67 +46,17 @@ type Frag struct {
 }
 
 type List struct {
-	saveChan chan Item
-	fs       afero.Fs
+	dir string
 }
 
-type Config struct {
-	Log *log.Logger
-}
-
-func New(conf Config, fs afero.Fs) (*List, error) {
-	var err error
-
-	if fs == nil {
-		return nil, fmt.Errorf("no filesystem defined for the allow list")
-	}
-
-	al := List{saveChan: make(chan Item), fs: fs}
-
-	_ = fs.MkdirAll(queryPath, os.ModePerm)
-	_ = fs.MkdirAll(fragmentPath, os.ModePerm)
-
-	go func() {
-		for v := range al.saveChan {
-			err := al.save(v)
-
-			if err != nil && conf.Log != nil {
-				conf.Log.Println("WRN allow list save:", err)
-			}
-		}
-	}()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &al, nil
-}
-
-func (al *List) Set(vars []byte, query string, md Metadata) error {
-	if al.saveChan == nil {
-		return errors.New("allow list is read-only")
-	}
-
-	if query == "" {
-		return errors.New("empty query")
-	}
-
-	item, err := parseQuery(query)
-	if err != nil {
-		return err
-	}
-
-	item.Vars = string(vars)
-	item.Metadata = md
-	al.saveChan <- item
-	return nil
+func New(dir string) (*List) {
+	return &List{dir}
 }
 
 func (al *List) Load() ([]Item, error) {
 	var items []Item
 
-	files, err := afero.ReadDir(al.fs, queryPath)
+	files, err := os.ReadDir(path.Join(al.dir, queryPath))
 	if err != nil {
 		return nil, fmt.Errorf("allow list: %w", err)
 	}
@@ -126,43 +68,14 @@ func (al *List) Load() ([]Item, error) {
 		fn := f.Name()
 		fn = strings.TrimSuffix(fn, filepath.Ext(fn))
 
-		// migrate if old file exists
-		/*
-			oldFile := path.Join(queryPath, fn)
-			if _, err := os.Stat(oldFile); !os.IsNotExist(err) {
-				b, err := afero.ReadFile(al.fs, oldFile)
-				if err != nil {
-					return nil, err
-				}
-
-				item, err = parseQuery(string(b))
-				if err != nil {
-					return nil, err
-				}
-				mi = true
-			}
-		*/
-
-		newFile := path.Join(queryPath, (fn + ".yaml"))
-		/*if mi {
-			b, err := yaml.Marshal(&item)
-			if err != nil {
-				return nil, err
-			}
-			if err := afero.WriteFile(al.fs, newFile, b, 0600); err != nil {
-				return nil, err
-			}
-
-		} else {
-		*/
-		b, err := afero.ReadFile(al.fs, newFile)
+		newFile := path.Join(al.dir, queryPath, fn + ".yaml")
+		b, err := os.ReadFile(newFile)
 		if err != nil {
 			return nil, err
 		}
 		if err := yaml.Unmarshal(b, &item); err != nil {
 			return nil, err
 		}
-		//}
 
 		items = append(items, item)
 	}
@@ -253,75 +166,9 @@ func setValue(st int, v string, item Item) (Item, error) {
 	return item, nil
 }
 
-func (al *List) save(item Item) error {
-	var buf bytes.Buffer
-
-	qd := &schema.QueryDocument{}
-
-	if err := qd.Parse(item.Query); err != nil {
-		return err
-	}
-
-	qd.WriteTo(&buf)
-	query := buf.String()
-	buf.Reset()
-
-	item.Name = QueryName(query)
-	item.key = strings.ToLower(item.Name)
-
-	if item.Name == "" {
-		return nil
-	}
-
-	if err := al.saveItem(item, true); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (al *List) saveItem(item Item, ow bool) error {
-	var err error
-
-	if item.Vars != "" {
-		var buf bytes.Buffer
-
-		if err := jsn.Clear(&buf, []byte(item.Vars)); err != nil {
-			return err
-		}
-
-		vj := json.RawMessage(buf.Bytes())
-		if vj, err = json.MarshalIndent(vj, "", "  "); err != nil {
-			return err
-		}
-		item.Vars = string(vj)
-	}
-
-	b, err := yaml.Marshal(&item)
-	if err != nil {
-		return err
-	}
-
-	fn := path.Join(queryPath, (item.Name + ".yaml"))
-	if err := afero.WriteFile(al.fs, fn, b, 0600); err != nil {
-		return err
-	}
-
-	for _, fv := range item.frags {
-		fn := path.Join(fragmentPath, fv.Name)
-		b := []byte(fv.Value)
-
-		if err := afero.WriteFile(al.fs, fn, b, 0600); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (al *List) FragmentFetcher() func(name string) (string, error) {
 	return func(name string) (string, error) {
-		v, err := afero.ReadFile(al.fs, path.Join(fragmentPath, name))
+		v, err := os.ReadFile(path.Join(fragmentPath, name))
 		return string(v), err
 	}
 }

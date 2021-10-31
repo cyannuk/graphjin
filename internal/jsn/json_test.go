@@ -363,24 +363,6 @@ func TestStrip(t *testing.T) {
 	}
 }
 
-func TestValidateTrue(t *testing.T) {
-	json := []byte(`  [{"id":1,"embed":{"id":8}},{"id":2},{"id":3},{"id":4},{"id":5},{"id":6},{"id":7},{"id":8},{"id":9},{"id":10},{"id":11},{"id":12},{"id":13}]`)
-
-	err := jsn.Validate(string(json))
-	if err != nil {
-		t.Error(err)
-	}
-}
-
-func TestValidateFalse(t *testing.T) {
-	json := []byte(`   [{ "hello": 123"<html>}]`)
-
-	err := jsn.Validate(string(json))
-	if err == nil {
-		t.Error("JSON validation failed to detect invalid json")
-	}
-}
-
 func TestReplace(t *testing.T) {
 	var buf bytes.Buffer
 
@@ -466,76 +448,6 @@ func TestReplaceEmpty(t *testing.T) {
 	if buf.String() != json {
 		t.Log(buf.String())
 		t.Error("Does not match expected json")
-	}
-}
-
-func TestKeys1(t *testing.T) {
-	json := `[{"id":1,"posts": [{"title":"PT1-1","description":"PD1-1"}, {"title":"PT1-2","description":"PD1-2"}], "full_name":"FN1","email":"E1","books": [{"name":"BN1-1","description":"BD1-1"},{"name":"BN1-2","description":"BD1-2"},{"name":"BN1-2","description":"BD1-2"}]},{"id":1,"posts": [{"title":"PT1-1","description":"PD1-1"}, {"title":"PT1-2","description":"PD1-2"}], "full_name":"FN1","email":"E1","books": [{"name":"BN1-1","description":"BD1-1"},{"name":"BN1-2","description":"BD1-2"},{"name":"BN1-2","description":"BD1-2"}]},{"id":1,"posts": [{"title":"PT1-1","description":"PD1-1"}, {"title":"PT1-2","description":"PD1-2"}], "full_name":"FN1","email":"E1","books": [{"name":"BN1-1","description":"BD1-1"},{"name":"BN1-2","description":"BD1-2"},{"name":"BN1-2","description":"BD1-2"}]}]`
-
-	fields := jsn.Keys([]byte(json))
-
-	exp := []string{
-		"id", "posts", "title", "description", "full_name", "email", "books", "name", "description",
-	}
-
-	if len(exp) != len(fields) {
-		t.Errorf("Expected %d fields %d", len(exp), len(fields))
-	}
-
-	for i := range exp {
-		if string(fields[i]) != exp[i] {
-			t.Errorf("Expected field '%s' got '%s'", string(exp[i]), fields[i])
-		}
-	}
-}
-
-func TestKeys2(t *testing.T) {
-	json := `{"id":1,"posts": [{"title":"PT1-1","description":"PD1-1"}, {"title":"PT1-2","description":"PD1-2"}], "full_name":"FN1","email":"E1","books": [{"name":"BN1-1","description":"BD1-1"},{"name":"BN1-2","description":"BD1-2"},{"name":"BN1-2","description":"BD1-2"}]}`
-
-	fields := jsn.Keys([]byte(json))
-
-	exp := []string{
-		"id", "posts", "title", "description", "full_name", "email", "books", "name", "description",
-	}
-
-	if len(exp) != len(fields) {
-		t.Errorf("Expected %d fields %d", len(exp), len(fields))
-	}
-
-	for i := range exp {
-		if string(fields[i]) != exp[i] {
-			t.Errorf("Expected field '%s' got '%s'", string(exp[i]), fields[i])
-		}
-	}
-}
-
-func TestKeys3(t *testing.T) {
-	json := `{
-		"insert": {
-			"created_at": "now",
-			"test_1a": { "type1": "a", "type2": "b" },
-			"name": "Hello",
-			"updated_at": "now",
-			"description": "World"
-		},
-		"user": 123
-	}`
-
-	fields := jsn.Keys([]byte(json))
-
-	exp := []string{
-		"insert", "created_at", "test_1a", "type1", "type2", "name", "updated_at", "description",
-		"user",
-	}
-
-	if len(exp) != len(fields) {
-		t.Errorf("Expected %d fields %d", len(exp), len(fields))
-	}
-
-	for i := range exp {
-		if string(fields[i]) != exp[i] {
-			t.Errorf("Expected field '%s' got '%s'", string(exp[i]), fields[i])
-		}
 	}
 }
 

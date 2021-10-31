@@ -18,11 +18,7 @@ type apqCache struct {
 
 func (gj *graphjin) initAPQCache() error {
 	var err error
-	if gj.prod {
-		gj.apq.staticCache = make(map[string]apqInfo)
-	} else {
-		gj.apq.lruCache, err = lru.New(100)
-	}
+	gj.apq.lruCache, err = lru.New(100)
 	return err
 }
 

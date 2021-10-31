@@ -2,9 +2,10 @@ package jsn
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"io"
+
+	"github.com/goccy/go-json"
 )
 
 // Clear function wipes all scalar values from the json including those directly in an array

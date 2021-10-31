@@ -1,12 +1,12 @@
 package qcode_test
 
 import (
-	"encoding/json"
 	"errors"
 	"testing"
 
 	"github.com/dosco/graphjin/core/internal/qcode"
 	"github.com/dosco/graphjin/core/internal/sdata"
+	"github.com/goccy/go-json"
 )
 
 var dbs *sdata.DBSchema

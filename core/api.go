@@ -45,24 +45,18 @@ package core
 
 import (
 	"context"
-	"crypto/sha256"
-	"database/sql"
-	"encoding/json"
 	"errors"
 	_log "log"
 	"os"
 	"sync"
 	"sync/atomic"
 
-	"github.com/chirino/graphql"
-	"github.com/dop251/goja"
 	"github.com/dosco/graphjin/core/internal/allow"
-	"github.com/dosco/graphjin/core/internal/crypto"
 	"github.com/dosco/graphjin/core/internal/psql"
 	"github.com/dosco/graphjin/core/internal/qcode"
 	"github.com/dosco/graphjin/core/internal/sdata"
-	"github.com/dosco/graphjin/core/internal/util"
-	"github.com/spf13/afero"
+	"github.com/goccy/go-json"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
 type contextkey int
@@ -86,14 +80,12 @@ const (
 // datase schemas, relationships, etc that the GraphQL to SQL compiler would need to do it's job.
 type graphjin struct {
 	conf        *Config
-	db          *sql.DB
+	pool		*pgxpool.Pool
 	log         *_log.Logger
-	fs          afero.Fs
 	dbtype      string
 	dbinfo      *sdata.DBInfo
 	schema      *sdata.DBSchema
 	allowList   *allow.List
-	encKey      [32]byte
 	apq         apqCache
 	queries     map[string]*queryComp
 	roles       map[string]*Role
@@ -103,29 +95,20 @@ type graphjin struct {
 	abacEnabled bool
 	qc          *qcode.Compiler
 	pc          *psql.Compiler
-	ge          *graphql.Engine
 	subs        sync.Map
 	scripts     sync.Map
-	prod        bool
 }
 
 type GraphJin struct {
 	atomic.Value
 }
 
-type script struct {
-	ReqFunc  reqFunc
-	RespFunc respFunc
-	vm       *goja.Runtime
-	util.Once
-}
-
 type Option func(*graphjin) error
 
 // NewGraphJin creates the GraphJin struct, this involves querying the database to learn its
 // schemas and relationships
-func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (*GraphJin, error) {
-	gj, err := newGraphJin(conf, db, nil, options...)
+func NewGraphJin(conf *Config, pool *pgxpool.Pool, options ...Option) (*GraphJin, error) {
+	gj, err := newGraphJin(conf, pool, nil, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -133,24 +116,20 @@ func NewGraphJin(conf *Config, db *sql.DB, options ...Option) (*GraphJin, error)
 	g := &GraphJin{}
 	g.Store(gj)
 
-	if err := g.initDBWatcher(); err != nil {
-		return nil, err
-	}
 	return g, nil
 }
 
 // newGraphJin helps with writing tests and benchmarks
-func newGraphJin(conf *Config, db *sql.DB, dbinfo *sdata.DBInfo, options ...Option) (*graphjin, error) {
+func newGraphJin(conf *Config, pool *pgxpool.Pool, dbinfo *sdata.DBInfo, options ...Option) (*graphjin, error) {
 	if conf == nil {
 		conf = &Config{Debug: true, DisableAllowList: true}
 	}
 
 	gj := &graphjin{
 		conf:   conf,
-		db:     db,
+		pool:   pool,
 		dbinfo: dbinfo,
 		log:    _log.New(os.Stdout, "", 0),
-		prod:   conf.Production || os.Getenv("GO_ENV") == "production",
 	}
 
 	if err := gj.initAPQCache(); err != nil {
@@ -166,10 +145,6 @@ func newGraphJin(conf *Config, db *sql.DB, dbinfo *sdata.DBInfo, options ...Opti
 		if err := op(gj); err != nil {
 			return nil, err
 		}
-	}
-
-	if err := gj.initFS(); err != nil {
-		return nil, err
 	}
 
 	if err := gj.initDiscover(); err != nil {
@@ -192,34 +167,11 @@ func newGraphJin(conf *Config, db *sql.DB, dbinfo *sdata.DBInfo, options ...Opti
 		return nil, err
 	}
 
-	if err := gj.initGraphQLEgine(); err != nil {
-		return nil, err
-	}
-
 	if err := gj.prepareRoleStmt(); err != nil {
 		return nil, err
 	}
 
-	if err := gj.initScripting(); err != nil {
-		return nil, err
-	}
-
-	if conf.SecretKey != "" {
-		sk := sha256.Sum256([]byte(conf.SecretKey))
-		conf.SecretKey = ""
-		gj.encKey = sk
-	} else {
-		gj.encKey = crypto.NewEncryptionKey()
-	}
-
 	return gj, nil
-}
-
-func OptionSetFS(fs afero.Fs) Option {
-	return func(s *graphjin) error {
-		s.fs = fs
-		return nil
-	}
 }
 
 type Error struct {
@@ -299,18 +251,6 @@ func (g *GraphJin) GraphQL(
 		return res, errors.New("mysql: mutations not supported")
 	}
 
-	// use the chirino/graphql library for introspection queries
-	// disabled when allow list is enforced
-	if !gj.prod && ct.name == "IntrospectionQuery" {
-		r := gj.ge.ServeGraphQL(&graphql.Request{Query: query})
-		res.Data = r.Data
-
-		if r.Error() != nil {
-			res.Errors = []Error{{Message: r.Error().Error()}}
-		}
-		return res, r.Error()
-	}
-
 	var role string
 
 	if v, ok := c.Value(UserRoleKey).(string); ok {
@@ -340,7 +280,7 @@ func (g *GraphJin) GraphQL(
 		}
 	}
 
-	res.Data = json.RawMessage(qres.data)
+	res.Data = qres.data
 	res.role = qres.role
 
 	return res, err
@@ -349,17 +289,11 @@ func (g *GraphJin) GraphQL(
 // Reload does database discover and reinitializes GraphJin.
 func (g *GraphJin) Reload() error {
 	gj := g.Load().(*graphjin)
-	gjNew, err := newGraphJin(gj.conf, gj.db, nil)
+	gjNew, err := newGraphJin(gj.conf, gj.pool, nil)
 	if err == nil {
 		g.Store(gjNew)
 	}
 	return err
-}
-
-// IsProd return true for production mode or false for development mode
-func (g *GraphJin) IsProd() bool {
-	gj := g.Load().(*graphjin)
-	return gj.prod
 }
 
 // Operation function return the operation type and name from the query.

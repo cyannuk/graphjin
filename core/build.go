@@ -2,12 +2,12 @@ package core
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"sync"
 
 	"github.com/dosco/graphjin/core/internal/psql"
 	"github.com/dosco/graphjin/core/internal/qcode"
+	"github.com/goccy/go-json"
 )
 
 type queryComp struct {
@@ -36,7 +36,7 @@ func (gj *graphjin) compileQuery(qr queryReq, role string) (*queryComp, error) {
 		}
 	}
 
-	if gj.allowList == nil || !gj.prod {
+	if gj.allowList == nil {
 		st, err := gj.compileQueryRole(qr, vm, role)
 		if err != nil {
 			return nil, err

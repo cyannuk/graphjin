@@ -2,8 +2,9 @@ package psql_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func simpleQuery(t *testing.T) {

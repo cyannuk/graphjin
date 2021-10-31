@@ -1,11 +1,14 @@
 package sdata
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"regexp"
 	"strings"
 
+	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/mitchellh/hashstructure/v2"
 	"golang.org/x/sync/errgroup"
 )
@@ -48,7 +51,7 @@ type st struct {
 }
 
 func GetDBInfo(
-	db *sql.DB,
+	pool *pgxpool.Pool,
 	dbType string,
 	blockList []string) (*DBInfo, error) {
 
@@ -61,12 +64,12 @@ func GetDBInfo(
 	g := errgroup.Group{}
 
 	g.Go(func() error {
-		var row *sql.Row
+		var row pgx.Row
 		switch dbType {
 		case "mysql":
-			row = db.QueryRow(mysqlInfo)
+			row = pool.QueryRow(context.Background(), mysqlInfo)
 		default:
-			row = db.QueryRow(postgresInfo)
+			row = pool.QueryRow(context.Background(), postgresInfo)
 		}
 
 		if err := row.Scan(&dbVersion, &dbSchema, &dbName); err != nil {
@@ -77,11 +80,11 @@ func GetDBInfo(
 
 	g.Go(func() error {
 		var err error
-		if cols, err = DiscoverColumns(db, dbType, blockList); err != nil {
+		if cols, err = DiscoverColumns(pool, dbType, blockList); err != nil {
 			return err
 		}
 
-		if funcs, err = DiscoverFunctions(db, blockList); err != nil {
+		if funcs, err = DiscoverFunctions(pool, blockList); err != nil {
 			return err
 		}
 		return nil
@@ -221,7 +224,7 @@ type DBColumn struct {
 	Schema     string
 }
 
-func DiscoverColumns(db *sql.DB, dbtype string, blockList []string) ([]DBColumn, error) {
+func DiscoverColumns(pool *pgxpool.Pool, dbtype string, blockList []string) ([]DBColumn, error) {
 	var sqlStmt string
 
 	switch dbtype {
@@ -231,7 +234,7 @@ func DiscoverColumns(db *sql.DB, dbtype string, blockList []string) ([]DBColumn,
 		sqlStmt = postgresColumnsStmt
 	}
 
-	rows, err := db.Query(sqlStmt)
+	rows, err := pool.Query(context.Background(), sqlStmt)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching columns: %s", err)
 	}
@@ -308,8 +311,8 @@ type DBFuncParam struct {
 	Type string
 }
 
-func DiscoverFunctions(db *sql.DB, blockList []string) ([]DBFunction, error) {
-	rows, err := db.Query(functionsStmt)
+func DiscoverFunctions(pool *pgxpool.Pool, blockList []string) ([]DBFunction, error) {
+	rows, err := pool.Query(context.Background(), functionsStmt)
 	if err != nil {
 		return nil, fmt.Errorf("Error fetching functions: %s", err)
 	}

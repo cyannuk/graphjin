@@ -2,11 +2,11 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/dosco/graphjin/core/internal/psql"
 	"github.com/dosco/graphjin/internal/jsn"
+	"github.com/goccy/go-json"
 )
 
 // argList function is used to create a list of arguments to pass
@@ -75,11 +75,7 @@ func (gj *graphjin) argList(c context.Context, md psql.Metadata, vars []byte, rc
 
 		case "cursor":
 			if v, ok := fields["cursor"]; ok && v[0] == '"' {
-				v1, err := gj.decrypt(string(v[1 : len(v)-1]))
-				if err != nil {
-					return ar, err
-				}
-				vl[i] = string(v1)
+				vl[i] = string(v[1 : len(v)-1])
 			} else {
 				vl[i] = nil
 			}

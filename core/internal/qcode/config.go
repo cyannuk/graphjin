@@ -2,8 +2,6 @@ package qcode
 
 import (
 	"strings"
-
-	"github.com/gobuffalo/flect"
 )
 
 type Config struct {
@@ -15,7 +13,6 @@ type Config struct {
 	DisableAgg       bool
 	DisableFuncs     bool
 	EnableCamelcase  bool
-	EnableInflection bool
 	DBSchema         string
 	defTrv           trval
 }
@@ -166,14 +163,7 @@ func (co *Compiler) AddRole(role, schema, table string, trc TRConfig) error {
 		schema = co.s.DBSchema()
 	}
 
-	if co.c.EnableInflection {
-		singular := flect.Singularize(table)
-		plural := flect.Pluralize(table)
-		co.tr[(role + ":" + schema + ":" + singular)] = trv
-		co.tr[(role + ":" + schema + ":" + plural)] = trv
-	} else {
-		co.tr[(role + ":" + schema + ":" + table)] = trv
-	}
+	co.tr[(role + ":" + schema + ":" + table)] = trv
 
 	return nil
 }

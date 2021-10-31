@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os"
+	"path"
 	"strconv"
 	"strings"
 
@@ -64,14 +66,18 @@ func (gj *graphjin) initAllowList() error {
 		return nil
 	}
 
-	gj.allowList, err = allow.New(allow.Config{Log: gj.log}, gj.fs)
-
+	workingDir, err := os.Getwd()
 	if err != nil {
-		return fmt.Errorf("failed to initialize allow list: %w", err)
+		return err
 	}
+	baseDir := path.Join(workingDir, "allow-list")
+	queryDir := path.Join(baseDir, "queries")
+	if _, err := os.Stat(queryDir); os.IsNotExist(err) {
+		return fmt.Errorf("dir not found: %s", queryDir)
+	}
+	gj.allowList = allow.New(baseDir)
 
-	// return if allow list diabled or not prod
-	if gj.allowList == nil || !gj.prod {
+	if gj.allowList == nil {
 		return nil
 	}
 

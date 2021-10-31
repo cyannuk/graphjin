@@ -2,10 +2,10 @@ package core_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/dosco/graphjin/core"
+	"github.com/goccy/go-json"
 )
 
 func Example_update() {
@@ -25,7 +25,7 @@ func Example_update() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -67,7 +67,7 @@ func Example_updateMultipleRelatedTables1() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -104,7 +104,7 @@ func Example_updateTableAndConnectToRelatedTables() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -141,7 +141,7 @@ func Example_updateTableAndRelatedTable() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}

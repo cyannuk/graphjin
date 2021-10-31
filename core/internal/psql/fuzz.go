@@ -3,9 +3,8 @@
 package psql
 
 import (
-	"encoding/json"
-
 	"github.com/dosco/graphjin/core/internal/qcode"
+	"github.com/goccy/go-json"
 )
 
 var (

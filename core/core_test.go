@@ -1,133 +1,31 @@
 package core_test
 
 import (
-	"database/sql"
-	"flag"
-	"fmt"
-	"os"
-	"testing"
+	"context"
+	"log"
 
 	"github.com/dosco/graphjin/core"
-	"github.com/orlangure/gnomock"
-	"github.com/orlangure/gnomock/preset/cockroachdb"
-	"github.com/orlangure/gnomock/preset/mssql"
-	"github.com/orlangure/gnomock/preset/mysql"
-	"github.com/orlangure/gnomock/preset/postgres"
+	"github.com/jackc/pgx/v4/pgxpool"
 )
 
-type dbinfo struct {
-	name    string
-	driver  string
-	connstr string
-	disable bool
-	preset  gnomock.Preset
-}
-
 var (
-	dbParam string
-	dbType  string
-	db      *sql.DB
+	dbType string
+	pool   *pgxpool.Pool
 )
 
 func init() {
-	flag.StringVar(&dbParam, "db", "", "database type")
-}
-
-func TestMain(m *testing.M) {
-	flag.Parse()
-
-	dbinfoList := []dbinfo{
-		{
-			name:    "postgres",
-			driver:  "postgres",
-			connstr: "postgres://tester:tester@%s/db?sslmode=disable",
-			preset: postgres.Preset(
-				postgres.WithUser("tester", "tester"),
-				postgres.WithDatabase("db"),
-				postgres.WithQueriesFile("./postgres.sql"),
-				postgres.WithVersion("12.5"),
-			),
-		},
-		{
-			disable: true,
-			name:    "cockroach",
-			driver:  "postgres",
-			connstr: "postgres://root:@%s/db?sslmode=disable",
-			preset: cockroachdb.Preset(
-				cockroachdb.WithDatabase("db"),
-				cockroachdb.WithQueriesFile("./cockroach.sql"),
-				cockroachdb.WithVersion("v20.1.10"),
-			),
-		},
-		{
-			disable: true,
-			name:    "mysql",
-			driver:  "mysql",
-			connstr: "user:user@tcp(%s)/db",
-			preset: mysql.Preset(
-				mysql.WithUser("user", "user"),
-				mysql.WithDatabase("db"),
-				mysql.WithQueriesFile("./mysql.sql"),
-				mysql.WithVersion("8.0.22"),
-			),
-		},
-		{
-			disable: true,
-			name:    "mssql",
-			driver:  "sqlserver",
-			connstr: "sqlserver://sa:password@%s?database=db",
-			preset: mssql.Preset(
-				mssql.WithLicense(true),
-				mssql.WithVersion("2019-latest"),
-				mssql.WithAdminPassword("YourStrong!Passw0rd"),
-				mssql.WithDatabase("db"),
-				mssql.WithQueriesFile("./mssql.sql"),
-			),
-		},
+	dbType = "postgres"
+	config, err := pgxpool.ParseConfig("host=127.0.0.1 user=postgres password=postgres dbname=test sslmode=disable connect_timeout=2")
+	if err != nil {
+		log.Fatal(err)
 	}
-
-	for _, v := range dbinfoList {
-		disable := v.disable
-
-		if dbParam != "" {
-			if dbParam != v.name {
-				continue
-			} else {
-				disable = false
-			}
-		}
-
-		if disable {
-			continue
-		}
-
-		con, err := gnomock.Start(
-			v.preset,
-			gnomock.WithLogWriter(os.Stdout))
-		if err != nil {
-			panic(err)
-		}
-		defer func() {
-			if err := gnomock.Stop(con); err != nil {
-				panic(err)
-			}
-		}()
-
-		db, err = sql.Open(v.driver, fmt.Sprintf(v.connstr, con.DefaultAddress()))
-		if err != nil {
-			panic(err)
-		}
-		db.SetMaxIdleConns(300)
-		db.SetMaxOpenConns(600)
-		dbType = v.name
-
-		if res := m.Run(); res != 0 {
-			os.Exit(res)
-		}
+	config.MaxConns = 1
+	pool, err = pgxpool.ConnectConfig(context.Background(), config)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 
 func newConfig(c *core.Config) *core.Config {
-	c.DBSchemaPollDuration = -1
 	return c
 }

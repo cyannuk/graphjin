@@ -10,71 +10,9 @@
  
 GraphJin gives you an instant secure and fast GraphQL API without code. GraphQL is automagically compiled into an efficient SQL query. Use either as a library or a standalone service. Build your backend APIs 100X faster.
 
-## 1. Quick install
-Mac (Homebrew)
-```
-brew install dosco/graphjin/graphjin
-```
-
-Ubuntu (Snap)
-```
-sudo snap install --classic graphjin
-```
-
-Debian and Redhat ([releases](https://github.com/dosco/graphjin/releases))
-```
-Download the .deb or .rpm from the releases page and install with dpkg -i and rpm -i respectively.
-```
-
-Go Install
-```
-go get github.com/dosco/graphjin
-```
-
-## 2. Create a new app
-
-```bash
-graphjin new <app_name>
-
-cd <app_name>
-docker-compose run api db setup
-docker-compose up
-```
-
-## Secure out of the box
-
-When you use a query in development it's auto-saved in an allow list and only queries from this allow list can be run in production. In production these allowed queries are converted into prepared statments in the database to protect against sql injection, etc. This makes GraphJin very secure and also very fast since no compiling happens in production all queries go directly to the database. GraphJin is built in Go a language designed by Google to be secure and memory safe. 
-
-## Built for production
-
-#### Instantly deploy new versions
-
-```bash
-# Deploy a new config
-graphjin deploy --host=https://your-server.com --secret="your-secret-key"
-
-# Rollback the last deployment
-graphjin deploy rollback --host=https://your-server.com --secret="your-secret-key"
-```
-
-#### Secrets Management
-
-```bash
-# Secure save secrets like database passwords and JWT secret keys
-graphjin secrets
-```
-
-#### Database Management
-
-```bash
-# Create, Migrate and Seed your database
-graphjin db
-```
-
-
 ## Use in your own code
 
-You can use GraphJin as a library within your own code. The [serv](https://pkg.go.dev/github.com/dosco/graphjin/serv) package exposes the entirely GraphJin standlone service as a library while the [core](https://pkg.go.dev/github.com/dosco/graphjin/core) package exposes just the GraphJin compiler. The [Go docs](https://pkg.go.dev/github.com/dosco/graphjin/core#pkg-examples) are filled with examples on how to use GraphJin within your own apps as a sort of alternative to using ORM packages. GraphJin allows you to use GraphQL and the full power of GraphJin to access your data instead of a limiting ORM.
+You can use GraphJin as a library within your own code. The [core](https://pkg.go.dev/github.com/dosco/graphjin/core) package exposes just the GraphJin compiler. The [Go docs](https://pkg.go.dev/github.com/dosco/graphjin/core#pkg-examples) are filled with examples on how to use GraphJin within your own apps as a sort of alternative to using ORM packages. GraphJin allows you to use GraphQL and the full power of GraphJin to access your data instead of a limiting ORM.
 
 ```console
 go get github.com/dosco/graphjin/core
@@ -85,16 +23,15 @@ package main
 
 import (
   "context"
-  "database/sql"
   "fmt"
   "log"
 
   "github.com/dosco/graphjin/core"
-  _ "github.com/jackc/pgx/v4/stdlib"
+  "github.com/jackc/pgx/v4/pgxpool"
 )
 
 func main() {
-  db, err := sql.Open("pgx", "postgres://postgres:@localhost:5432/example_db")
+  db, err := pgxpool.Connect(context.Background(), "postgres://postgres:@localhost:5432/example_db")
   if err != nil {
     log.Fatal(err)
   }
@@ -123,25 +60,6 @@ func main() {
   fmt.Println(string(res.Data))
 }
 ```
-
-### Use the standalone service as a library
-
-```golang
-import (
-  "github.com/dosco/graphjin/serv"
-)
-
-gj, err := serv.NewGraphJinService(conf, opt...)
-if err != nil {
- fatalInProd(err)
-}
-
-if err := gj.Start(); err != nil {
- fatalInProd(err)
-}
-```
-
-![graphjin-screenshot-final](https://user-images.githubusercontent.com/832235/108806955-1c363180-7571-11eb-8bfa-488ece2e51ae.png)
 
 
 ## Support the Project

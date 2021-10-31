@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
-	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -16,6 +14,8 @@ import (
 	"time"
 
 	"github.com/dosco/graphjin/core/internal/qcode"
+	"github.com/goccy/go-json"
+	"github.com/jackc/pgx/v4"
 	"github.com/rs/xid"
 )
 
@@ -86,7 +86,7 @@ func (g *GraphJin) Subscribe(
 	}
 
 	if name == "" {
-		if gj.allowList != nil && gj.prod {
+		if gj.allowList != nil {
 			return nil, errors.New("subscription: query name is required")
 		} else {
 			h := sha256.Sum256([]byte(query))
@@ -171,12 +171,6 @@ func (gj *graphjin) newSub(c context.Context, s *sub, query string, vars json.Ra
 
 	if s.qc, err = gj.compileQuery(qr, s.role); err != nil {
 		return err
-	}
-
-	if gj.allowList != nil && !gj.prod {
-		if err := gj.allowList.Set(vars, query, s.qc.st.qc.Metadata); err != nil {
-			return err
-		}
 	}
 
 	if len(s.qc.st.md.Params()) != 0 {
@@ -329,7 +323,7 @@ func (gj *graphjin) subCheckUpdates(s *sub, mv mval, start int) {
 
 	hasParams := len(s.qc.st.md.Params()) != 0
 
-	var rows *sql.Rows
+	var rows pgx.Rows
 	var err error
 
 	c := context.Background()
@@ -339,9 +333,9 @@ func (gj *graphjin) subCheckUpdates(s *sub, mv mval, start int) {
 	// more details on this optimization are towards the end
 	// of the function
 	if hasParams {
-		rows, err = gj.db.QueryContext(c, s.qc.st.sql, renderJSONArray(mv.params[start:end]))
+		rows, err = gj.pool.Query(c, s.qc.st.sql, renderJSONArray(mv.params[start:end]))
 	} else {
-		rows, err = gj.db.QueryContext(c, s.qc.st.sql)
+		rows, err = gj.pool.Query(c, s.qc.st.sql)
 	}
 
 	if err != nil {
@@ -388,12 +382,12 @@ func (gj *graphjin) subFirstQuery(s *sub, m *Member, params json.RawMessage) (mm
 	case s.js != nil:
 		js = s.js
 	case params != nil:
-		err = gj.db.
-			QueryRowContext(c, s.qc.st.sql, renderJSONArray([]json.RawMessage{params})).
+		err = gj.pool.
+			QueryRow(c, s.qc.st.sql, renderJSONArray([]json.RawMessage{params})).
 			Scan(&js)
 	default:
-		err = gj.db.
-			QueryRowContext(c, s.qc.st.sql).
+		err = gj.pool.
+			QueryRow(c, s.qc.st.sql).
 			Scan(&js)
 	}
 
@@ -431,7 +425,7 @@ func (gj *graphjin) subNotifyMemberEx(s *sub,
 		return mm, nil
 	}
 
-	cur, err := gj.encryptCursor(s.qc.st.qc, js)
+	cur, err := gj.getCursor(s.qc.st.qc, js)
 	if err != nil {
 		return mm, fmt.Errorf(errSubs, "cursor", err)
 	}

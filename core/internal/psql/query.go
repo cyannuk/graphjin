@@ -3,11 +3,11 @@ package psql
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 
 	"github.com/dosco/graphjin/core/internal/qcode"
 	"github.com/dosco/graphjin/core/internal/sdata"
+	"github.com/goccy/go-json"
 )
 
 const (

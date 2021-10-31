@@ -1,0 +1,8 @@
+name: getProducts
+query: |-
+    query getProducts {
+      products(id: $id) {
+        id
+        name
+      }
+    }

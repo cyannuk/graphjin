@@ -18,11 +18,7 @@ type resItem struct {
 func (gj *graphjin) initResolvers() error {
 	gj.rmap = make(map[string]resItem)
 
-	rtmap := map[string]refunc{
-		"remote_api": func(v ResolverProps) (Resolver, error) {
-			return newRemoteAPI(v)
-		},
-	}
+	rtmap := make(map[string]refunc)
 
 	for name, fn := range gj.conf.rtmap {
 		rtmap[name] = fn

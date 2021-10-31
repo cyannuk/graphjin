@@ -3,21 +3,14 @@ package core
 import (
 	"fmt"
 	"log"
-	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/dosco/graphjin/core/internal/qcode"
-	"github.com/spf13/afero"
-	"github.com/spf13/viper"
 )
 
 // Core struct contains core specific config value
 type Config struct {
-	// SecretKey is used to encrypt opaque values such as
-	// the cursor. Auto-generated if not set
-	SecretKey string `mapstructure:"secret_key"`
 
 	// DisableAllowList when set to true entirely disables the
 	// allow list workflow and all queries are always compiled
@@ -27,10 +20,6 @@ type Config struct {
 	// ConfigPath is the default path to find all configuration
 	// files and scripts under
 	ConfigPath string `mapstructure:"config_path"`
-
-	// ScriptPath if the path to the script files if not set the
-	// path is assumed to be the same as the config path
-	ScriptPath string `mapstructure:"script_path"`
 
 	// SetUserID forces the database session variable `user.id` to
 	// be set to the user id
@@ -73,14 +62,6 @@ type Config struct {
 	// you can add more custom roles
 	Roles []Role
 
-	// Inflections is to add additionally singular to plural mappings
-	// to the engine (eg. sheep: sheep)
-	Inflections []string `mapstructure:"inflections"`
-
-	// Disable inflections. Inflections are deprecated and will be
-	// removed in next major version
-	EnableInflection bool `mapstructure:"enable_inflection"`
-
 	// Customize singular suffix
 	// By default is set to "ByID"
 	SingularSuffix string `mapstructure:"singular_suffix"`
@@ -109,15 +90,6 @@ type Config struct {
 
 	// EnableCamelcase enables autp camel case terms in GraphQL to snake case in SQL
 	EnableCamelcase bool `mapstructure:"enable_camelcase"`
-
-	// Enable production mode. This defaults to true if GO_ENV is set to
-	// "production". When true the allow list is enforced
-	Production bool
-
-	// DBSchemaPollDuration sets the duration for polling the database
-	// schema to detect changes to it. GraphJin is reinitialized when a
-	// change is detected
-	DBSchemaPollDuration time.Duration `mapstructure:"db_schema_poll_every_seconds"`
 
 	rtmap map[string]refunc
 	tmap  map[string]qcode.TConfig
@@ -373,78 +345,4 @@ func (c *Config) SetResolver(name string, fn refunc) error {
 	}
 	c.rtmap[name] = fn
 	return nil
-}
-
-// ReadInConfig reads in the config file for the environment specified in the GO_ENV
-// environment variable. This is the best way to create a new GraphJin config.
-func ReadInConfig(configFile string) (*Config, error) {
-	return readInConfig(configFile, nil)
-}
-
-// ReadInConfigFS is the same as ReadInConfig but it also takes a filesytem as an argument
-func ReadInConfigFS(configFile string, fs afero.Fs) (*Config, error) {
-	return readInConfig(configFile, fs)
-}
-
-func readInConfig(configFile string, fs afero.Fs) (*Config, error) {
-	cp := path.Dir(configFile)
-	vi := newViper(cp, path.Base(configFile))
-
-	if fs != nil {
-		vi.SetFs(fs)
-	}
-
-	if err := vi.ReadInConfig(); err != nil {
-		return nil, err
-	}
-
-	if pcf := vi.GetString("inherits"); pcf != "" {
-		cf := vi.ConfigFileUsed()
-		vi = newViper(cp, pcf)
-		if fs != nil {
-			vi.SetFs(fs)
-		}
-
-		if err := vi.ReadInConfig(); err != nil {
-			return nil, err
-		}
-
-		if v := vi.GetString("inherits"); v != "" {
-			return nil, fmt.Errorf("inherited config (%s) cannot itself inherit (%s)", pcf, v)
-		}
-
-		vi.SetConfigFile(cf)
-
-		if err := vi.MergeInConfig(); err != nil {
-			return nil, err
-		}
-	}
-
-	c := &Config{
-		ConfigPath: path.Dir(vi.ConfigFileUsed()),
-	}
-
-	if err := vi.Unmarshal(&c); err != nil {
-		return nil, fmt.Errorf("failed to decode config, %v", err)
-	}
-
-	return c, nil
-}
-
-func newViper(configPath, configFile string) *viper.Viper {
-	vi := viper.New()
-
-	vi.SetEnvPrefix("GJ")
-	vi.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	vi.AutomaticEnv()
-
-	if filepath.Ext(configFile) != "" {
-		vi.SetConfigFile(path.Join(configPath, configFile))
-	} else {
-		vi.SetConfigName(configFile)
-		vi.AddConfigPath(configPath)
-		vi.AddConfigPath("./config")
-	}
-
-	return vi
 }

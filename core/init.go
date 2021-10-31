@@ -2,45 +2,15 @@ package core
 
 import (
 	"fmt"
-	"os"
-	"path"
 	"strings"
 	"unicode"
 
 	"github.com/dosco/graphjin/core/internal/qcode"
 	"github.com/dosco/graphjin/core/internal/sdata"
-	"github.com/gobuffalo/flect"
-	"github.com/spf13/afero"
 )
-
-func (gj *graphjin) initFS() error {
-	if gj.fs != nil {
-		return nil
-	}
-
-	var cpath string
-	if gj.conf.ConfigPath == "" {
-		cp, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		cpath = path.Join(cp, "config")
-	} else {
-		cpath = gj.conf.ConfigPath
-	}
-
-	gj.fs = afero.NewBasePathFs(afero.NewOsFs(), cpath)
-	return nil
-}
 
 func (gj *graphjin) initConfig() error {
 	c := gj.conf
-
-	if gj.conf.EnableInflection {
-		if err := initInflection(c); err != nil {
-			return err
-		}
-	}
 
 	tm := make(map[string]struct{})
 
@@ -109,18 +79,6 @@ func (gj *graphjin) initConfig() error {
 		gj.abacEnabled = (len(gj.roles) > 2)
 	}
 
-	return nil
-}
-
-func initInflection(c *Config) error {
-	for _, v := range c.Inflections {
-		kv := strings.SplitN(v, ":", 2)
-		if kv[0] == "" || kv[1] == "" {
-			return fmt.Errorf("inflections: should be an array of singular:plural values: %s", v)
-		}
-		flect.AddPlural(kv[0], kv[1])
-		flect.AddSingular(kv[1], kv[0])
-	}
 	return nil
 }
 

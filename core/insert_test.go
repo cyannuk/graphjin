@@ -2,10 +2,10 @@ package core_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/dosco/graphjin/core"
+	"github.com/goccy/go-json"
 )
 
 func Example_insert() {
@@ -27,7 +27,7 @@ func Example_insert() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -74,7 +74,7 @@ func Example_insertWithPresets() {
 		panic(err)
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -115,7 +115,7 @@ func Example_bulkInsert() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -171,7 +171,7 @@ func Example_insertIntoMultipleRelatedTables1() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -220,7 +220,7 @@ func Example_insertIntoMultipleRelatedTables2() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -267,7 +267,7 @@ func Example_insertIntoMultipleRelatedTables3() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -310,7 +310,7 @@ func Example_insertIntoTableAndConnectToRelatedTables() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -355,7 +355,7 @@ func Example_insertIntoTableAndConnectToRelatedTableWithArrayColumn() {
 		{Name: "products", Columns: []core.Column{{Name: "category_ids", ForeignKey: "categories.id"}}},
 	}
 
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -393,7 +393,7 @@ func Example_insertIntoRecursiveRelationship() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -429,7 +429,7 @@ func Example_insertIntoRecursiveRelationshipAndConnectTable1() {
 	}`)
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}
@@ -461,7 +461,7 @@ func Example_insertIntoRecursiveRelationshipAndConnectTable2() {
   }`
 
 	conf := newConfig(&core.Config{DBType: dbType, DisableAllowList: true})
-	gj, err := core.NewGraphJin(conf, db)
+	gj, err := core.NewGraphJin(conf, pool)
 	if err != nil {
 		panic(err)
 	}

@@ -1,8 +1,9 @@
 package psql_test
 
 import (
-	"encoding/json"
 	"testing"
+
+	"github.com/goccy/go-json"
 )
 
 func simpleInsert(t *testing.T) {
